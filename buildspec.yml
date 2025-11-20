@@ -1,0 +1,39 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo "===== PRE-BUILD ====="
+      - aws --version
+
+      # Extract registry host from REPOSITORY_URI
+      - REGISTRY=$(echo $REPOSITORY_URI | awk -F'/' '{print $1}')
+      - echo "Registry: $REGISTRY"
+
+      # Login to ECR
+      - echo "Logging into ECR..."
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REGISTRY
+
+      # Determine image tag from commit ID or fallback
+      - if [ -n "$CODEBUILD_RESOLVED_SOURCE_VERSION" ]; then IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7); else IMAGE_TAG=build-${CODEBUILD_BUILD_ID#*:}; fi
+      - echo "Using IMAGE_TAG=$IMAGE_TAG"
+
+  build:
+    commands:
+      - echo "===== BUILD PHASE ====="
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+
+  post_build:
+    commands:
+      - echo "===== PUSHING IMAGES ====="
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+
+      - echo "Creating imageDetail.json..."
+      - printf '[{"name":"%s","imageUri":"%s"}]' "$IMAGE_REPO_NAME" "$REPOSITORY_URI:$IMAGE_TAG" > imageDetail.json
+      - cat imageDetail.json
+
+artifacts:
+  files:
+    - imageDetail.json
