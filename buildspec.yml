@@ -8,7 +8,6 @@ phases:
 
       # Extract registry host from REPOSITORY_URI
       - REGISTRY=$(echo $REPOSITORY_URI | awk -F'/' '{print $1}')
-      - echo "Registry: $REGISTRY"
 
       # Login to ECR
       - echo "Logging into ECR..."
